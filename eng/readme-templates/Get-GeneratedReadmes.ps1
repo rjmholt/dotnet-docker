@@ -6,37 +6,43 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-if ($Validate) {
-    $customImageBuilderArgs = " --validate"
-}
-
 $repoRoot = (Get-Item "$PSScriptRoot").Parent.Parent.FullName
 
 $onDockerfilesGenerated = {
     param($ContainerName)
 
     if (-Not $Validate) {
-        Exec "docker cp ${ContainerName}:/repo/README.aspnet.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.aspnet.preview.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.monitor.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.runtime-deps.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.runtime-deps.preview.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.runtime.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.runtime.preview.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.samples.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.sdk.md $repoRoot"
-        Exec "docker cp ${ContainerName}:/repo/README.sdk.preview.md $repoRoot"
+        Import-Module "$PSScriptRoot/../common/ScriptTools.psm1"
+        Exec docker cp "${ContainerName}:/repo/README.aspnet.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.aspnet.preview.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.monitor.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.runtime-deps.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.runtime-deps.preview.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.runtime.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.runtime.preview.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.samples.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.sdk.md" $repoRoot
+        Exec docker cp "${ContainerName}:/repo/README.sdk.preview.md" $repoRoot
     }
 }
 
 function Invoke-GenerateReadme {
     param ([string] $Manifest, [string] $SourceBranch)
 
-    & $PSScriptRoot/../common/Invoke-ImageBuilder.ps1 `
-        -ImageBuilderArgs `
-            "generateReadmes --manifest $Manifest --source-branch $SourceBranch$customImageBuilderArgs --var branch=$SourceBranch 'https://github.com/dotnet/dotnet-docker'" `
-        -OnCommandExecuted $onDockerfilesGenerated
+    $params = @{
+        ImageBuilderArgs = @(
+            'generateReadmes'
+            '--manifest', $Manifest
+            '--source-branch', $SourceBranch
+            if ($Validate) { '--validate' }
+            '--var', "branch=$SourceBranch"
+            'https://github.com/dotnet/dotnet-docker'
+        )
+        OnCommandExecuted = $onDockerfilesGenerated
+    }
+
+    & $PSScriptRoot/../common/Invoke-ImageBuilder.ps1 @params
 }
 
 if (!$Branch) {

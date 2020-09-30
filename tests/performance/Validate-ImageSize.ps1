@@ -22,17 +22,20 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-pushd $PSScriptRoot/../../
+Push-Location $PSScriptRoot/../../
 try {
     $manifestJson = Get-Content ./manifest.json | ConvertFrom-Json
     $branch = ""
     if ($manifestJson.Repos[0].Name.Contains("nightly")) {
         $branch = ".nightly"
     }
-    
+
     $activeOS = docker version -f "{{ .Server.Os }}"
     $baselinePath = "./tests/performance/ImageSize$branch.$activeOS.json"
-    $commandArgs = "$baselinePath $ImageBuilderCustomArgs"
+    $commandArgs = @(
+        $baselinePath
+        $ImageBuilderCustomArgs
+    )
 
     if (!(Test-Path $baselinePath)) {
         Write-Warning "Baseline file '$baselinePath' does not exist. Skipping image size validation."
@@ -40,29 +43,31 @@ try {
     }
 
     if ($PullImages) {
-        $commandArgs += " --pull"
+        $commandArgs += @('--pull')
     }
 
     if ($UpdateBaselines) {
         $commandName = "updateImageSizeBaseline"
         if ($UpdateAll) {
-            $commandArgs += " --all"
+            $commandArgs += @('--all')
         }
     }
     else {
         $commandName = "validateImageSize"
-        $commandArgs += " --mode $ValidationMode"
+        $commandArgs += @('--mode', $ValidationMode)
     }
 
     $onCommandExecuted = {
         param($ContainerName)
         if ($UpdateBaselines -and $activeOS -eq "linux") {
-            Exec "docker cp ${ContainerName}:/repo/$baselinePath $baselinePath"
+            Exec docker cp "${ContainerName}:/repo/$baselinePath" $baselinePath
         }
     }
 
-    ./eng/common/Invoke-ImageBuilder.ps1 "$commandName $commandArgs" -OnCommandExecuted $onCommandExecuted
+    $imageBuilderArgs = @($commandName; $commandArgs)
+
+    ./eng/common/Invoke-ImageBuilder.ps1 $imageBuilderArgs -OnCommandExecuted $onCommandExecuted
 }
 finally {
-    popd
+    Pop-Location
 }

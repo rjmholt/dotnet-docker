@@ -18,24 +18,10 @@ param(
     [string[]]$TestCategories = @("runtime", "runtime-deps", "aspnet", "sdk")
 )
 
-function Log {
-    param ([string] $Message)
-
-    Write-Output $Message
-}
-
-function Exec {
-    param ([string] $Cmd)
-
-    Log "Executing: '$Cmd'"
-    Invoke-Expression $Cmd
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed: '$Cmd'"
-    }
-}
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+Import-Module "$PSScriptRoot/../eng/common/ScriptTools.psm1"
 
 $DotnetInstallDir = "$PSScriptRoot/../.dotnet"
 
@@ -117,7 +103,7 @@ Try {
         $testFilter = "--filter `"$testFilter`""
     }
 
-    Exec "$DotnetInstallDir/dotnet test $testFilter --logger:trx"
+    Exec "$DotnetInstallDir/dotnet" test $testFilter --logger:trx
 
     if ($TestCategories.Contains('image-size')) {
         & ../performance/Validate-ImageSize.ps1 -PullImages:$PullImages -ValidationMode Integrity

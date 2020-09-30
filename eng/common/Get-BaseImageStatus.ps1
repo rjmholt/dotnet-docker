@@ -25,9 +25,9 @@ param(
 
 Set-StrictMode -Version Latest
 
-$imageBuilderArgs = "getBaseImageStatus --manifest $Manifest --architecture $Architecture"
+$imageBuilderArgs = 'getBaseImageStatus','--manifest',$Manifest,'--architecture',$Architecture
 if ($Continuous) {
-    $imageBuilderArgs += " --continuous --continuous-delay $ContinuousDelay"
+    $imageBuilderArgs += '--continuous','--continuous-delay',$ContinuousDelay
 }
 
 & "$PSScriptRoot/Invoke-ImageBuilder.ps1" -ImageBuilderArgs $imageBuilderArgs

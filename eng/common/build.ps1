@@ -29,23 +29,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-function Log {
-    param ([string] $Message)
+Import-Module "$PSScriptRoot/ScriptTools.psm1"
 
-    Write-Output $Message
-}
-
-function Exec {
-    param ([string] $Cmd)
-
-    Log "Executing: '$Cmd'"
-    Invoke-Expression $Cmd
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed: '$Cmd'"
-    }
-}
-
-pushd $PSScriptRoot/../..
+Push-Location $PSScriptRoot/../..
 try {
     $args = $OptionalImageBuilderArgs
 
@@ -71,5 +57,5 @@ try {
     ./eng/common/Invoke-ImageBuilder.ps1 "build $args"
 }
 finally {
-    popd
+    Pop-Location
 }

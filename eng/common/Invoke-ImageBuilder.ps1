@@ -8,7 +8,7 @@ Executes ImageBuilder with the specified args.
 The args to pass to ImageBuilder.
 
 .PARAMETER ReuseImageBuilderImage
-Indicates that a previously built ImageBuilder image is presumed to exist locally and that 
+Indicates that a previously built ImageBuilder image is presumed to exist locally and that
 it should be used for this execution of the script.  This allows some optimization when
 multiple calls are being made to this script that don't require a fresh image (i.e. the
 repo contents in the image don't need to be or should not be updated with each call to
@@ -23,7 +23,7 @@ The ScriptBlock is passed the following argument values:
 #>
 [cmdletbinding()]
 param(
-    [string]
+    [string[]]
     $ImageBuilderArgs,
 
     [switch]
@@ -35,24 +35,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-function Log {
-    param ([string] $Message)
-
-    Write-Output $Message
-}
-
-function Exec {
-    param ([string] $Cmd)
-
-    Log "Executing: '$Cmd'"
-    Invoke-Expression $Cmd
-    if ($LASTEXITCODE -ne 0) {
-        $host.SetShouldExit($LASTEXITCODE)
-        exit $LASTEXITCODE
-        throw "Failed: '$Cmd'"
-    }
-}
+Import-Module "$PSScriptRoot/ScriptTools.psm1"
 
 function PullImageBuilder {
     Invoke-Expression "docker inspect ${imageNames.imagebuilder} | Out-Null"
@@ -65,12 +48,12 @@ function PullImageBuilder {
 $imageBuilderContainerName = "ImageBuilder-$(Get-Date -Format yyyyMMddhhmmss)"
 $containerCreated = $false
 
-pushd $PSScriptRoot/../../
+Push-Location $PSScriptRoot/../../
 try {
     # Load common image names
     Get-Content ./eng/common/templates/variables/docker-images.yml |
     Where-Object { $_.Trim() -notlike 'variables:' } |
-    ForEach-Object { 
+    ForEach-Object {
         $parts = $_.Split(':', 2)
         Set-Variable -Name $parts[0].Trim() -Value $parts[1].Trim()
     }
@@ -81,8 +64,14 @@ try {
         $imageBuilderImageName = "microsoft-dotnet-imagebuilder-withrepo"
         if ($ReuseImageBuilderImage -ne $True) {
             PullImageBuilder
-            Exec ("docker build -t $imageBuilderImageName --build-arg " `
-                + "IMAGE=${imageNames.imagebuilder} -f eng/common/Dockerfile.WithRepo .")
+            Exec docker @(
+                'build'
+                '-t', $imageBuilderImageName
+                '--build-arg', "IMAGE=${imageNames.imageBuilder}"
+                '-f', 'eng/common/Dockerfile.WithRepo'
+                '.'
+            )
+
         }
 
         $imageBuilderCmd = "docker run --name $imageBuilderContainerName -v /var/run/docker.sock:/var/run/docker.sock $imageBuilderImageName"
@@ -94,18 +83,18 @@ try {
         $imageBuilderCmd = [System.IO.Path]::Combine($imageBuilderFolder, "Microsoft.DotNet.ImageBuilder.exe")
         if (-not (Test-Path -Path "$imageBuilderCmd" -PathType Leaf)) {
             PullImageBuilder
-            Exec "docker create --name $imageBuilderContainerName ${imageNames.imagebuilder}"
+            Exec docker create --name $imageBuilderContainerName ${imageNames.imagebuilder}
             $containerCreated = $true
             if (Test-Path -Path $imageBuilderFolder)
             {
                 Remove-Item -Recurse -Force -Path $imageBuilderFolder
             }
 
-            Exec "docker cp ${imageBuilderContainerName}:/image-builder $imageBuilderFolder"
+            Exec docker cp "${imageBuilderContainerName}:/image-builder" $imageBuilderFolder
         }
     }
 
-    Exec "$imageBuilderCmd $ImageBuilderArgs"
+    Exec $imageBuilderCmd $ImageBuilderArgs
 
     if ($OnCommandExecuted) {
         Invoke-Command $OnCommandExecuted -ArgumentList $imageBuilderContainerName
@@ -113,8 +102,8 @@ try {
 }
 finally {
     if ($containerCreated) {
-        Exec "docker container rm -f $imageBuilderContainerName"
+        Exec docker container rm -f $imageBuilderContainerName
     }
-    
-    popd
+
+    Pop-Location
 }
